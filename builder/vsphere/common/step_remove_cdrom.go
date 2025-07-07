@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/packer-plugin-sdk/multistep"
 	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
+	"github.com/hashicorp/packer-plugin-sdk/template/config"
 	"github.com/hashicorp/packer-plugin-vsphere/builder/vsphere/driver"
 )
 
@@ -19,6 +20,10 @@ type RemoveCDRomConfig struct {
 	// Remove all CD-ROM devices from the virtual machine when the build is
 	// complete. Defaults to `false`.
 	RemoveCdrom bool `mapstructure:"remove_cdrom"`
+
+	// Eject all CD-ROM media from the CD-ROM devices when the build is
+	// complete. Defaults to `true`.
+	EjectCdrom config.Trilean `mapstructure:"eject_cdrom"`
 }
 
 type StepRemoveCDRom struct {
@@ -29,12 +34,18 @@ func (s *StepRemoveCDRom) Run(_ context.Context, state multistep.StateBag) multi
 	ui := state.Get("ui").(packersdk.Ui)
 	vm := state.Get("vm").(driver.VirtualMachine)
 
+	if s.Config.EjectCdrom == config.TriUnset {
+		s.Config.EjectCdrom = config.TriTrue
+	}
+
 	// Eject media from CD-ROM devices.
-	ui.Say("Ejecting CD-ROM media...")
-	err := vm.EjectCdroms()
-	if err != nil {
-		state.Put("error", fmt.Errorf("error ejecting cdrom media: %v", err))
-		return multistep.ActionHalt
+	if s.Config.EjectCdrom.True() {
+		ui.Say("Ejecting CD-ROM media...")
+		err := vm.EjectCdroms()
+		if err != nil {
+			state.Put("error", fmt.Errorf("error ejecting cdrom media: %v", err))
+			return multistep.ActionHalt
+		}
 	}
 
 	// Remove all CD-ROM devices from the image.
